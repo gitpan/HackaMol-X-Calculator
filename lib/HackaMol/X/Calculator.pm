@@ -1,16 +1,17 @@
   package HackaMol::X::Calculator;
   # ABSTRACT: Abstract calculator class for HackaMol
-  use Moose::Util::TypeConstraints;
+  use 5.008;
   use Moose;
-  use Carp;
+  use Moose::Util::TypeConstraints;
   use Capture::Tiny ':all';
   use File::chdir;
+  use Carp;
+
   with qw(HackaMol::ExeRole HackaMol::PathRole); 
 
   has 'mol'  => (
                       is        => 'ro',
                       isa       => 'HackaMol::Molecule',
-                      required  => 1,
                      );
 
   has 'map_in'    => (
@@ -45,8 +46,9 @@
       my $self = shift;
       my $cmd ;
       $cmd = $self->exe ;
-      $cmd .= " "  . $self->in_fn      if $self->has_in_fn;
-      $cmd .= " "  . $self->exe_endops if $self->has_exe_endops;
+      $cmd .= " "   . $self->in_fn->stringify      if $self->has_in_fn;
+      $cmd .= " "   . $self->exe_endops            if $self->has_exe_endops;
+      $cmd .= " > " . $self->out_fn->stringify     if $self->has_out_fn;
       # no cat of out_fn because of options to run without writing, etc
       return $cmd;
   }
@@ -107,7 +109,7 @@ HackaMol::X::Calculator - Abstract calculator class for HackaMol
 
 =head1 VERSION
 
-version 0.00_1
+version 0.00_2
 
 =head1 SYNOPSIS
 
@@ -161,7 +163,14 @@ version 0.00_1
 
 =head1 DESCRIPTION
 
-Abstract calculator class for HackaMol. The HackaMol::X::Calculator extension generalizes molecular calculations using external programs. The Calculator class consumes roles provided by the HackaMol core that manages the running of executables... perhaps on files; perhaps in directories.  This extension is intended to provide a simple example of interfaces with external programs. It is probably too flexible. New extensions can evolve from this starting point, in scripts, to more rigid encapsulated classes. 
+The HackaMol::X::Calculator extension generalizes molecular calculations using external programs. 
+The Calculator class consumes roles provided by the HackaMol core that manages the running of 
+executables... perhaps on files; perhaps in directories.  This extension is intended to provide a 
+simple example of interfaces with external programs. It is probably too flexible. New extensions 
+can evolve from this starting point, in scripts, to more rigid encapsulated classes. In the synopsis,
+The input is written (->map_input), the command is run (->capture_sys_command) and the output is 
+processed (->map_output).  Thus, the calculator can be used to 1. generate inputs, 2. run programs, 3. 
+process outputs.
 
 =head1 METHODS
 
