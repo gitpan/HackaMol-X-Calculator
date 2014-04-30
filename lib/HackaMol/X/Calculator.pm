@@ -117,7 +117,7 @@ HackaMol::X::Calculator - Abstract calculator class for HackaMol
 
 =head1 VERSION
 
-version 0.00_3
+version 0.00_4
 
 =head1 SYNOPSIS
 

@@ -39,7 +39,7 @@ my $hack = HackaMol->new(
 my $i = 0;
 
 
-my $scratch = path('realtmp/tmp');
+my $scratch = path('tmp');
  
 foreach my $xyz ( $hack->data->children( qr/\.xyz$/ ) )
 {

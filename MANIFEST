@@ -9,6 +9,12 @@ README.md
 dist.ini
 examples/PrepXyzACS.pl
 examples/dftb3.pl
+examples/dftb3_in.pl
+examples/dftb3_out.pl
+examples/dftb3_run.pl
+examples/g09_out_scfdone.pl
+examples/g09_pdb.pl
+examples/g09_xyz.pl
 lib/HackaMol/X/Calculator.pm
 t/HackaMol-X-Calculator-Basics.t
 t/HackaMol-X-Calculator-Mapping.t

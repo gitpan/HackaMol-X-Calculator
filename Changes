@@ -1,5 +1,9 @@
 Revision history for HackaMol-X-Calculator
 
+0.00_4    2014-04-30 09:22:05EDT-0400 America/New_York
+    * several new examples showing separation of input, running, output phases
+    * added examples for processing gaussian output from simple to not so simple
+
 0.00_3    2014-04-28 10:37:57EDT-0400 America/New_York
     * improved tests, adjusted synopsis
 
