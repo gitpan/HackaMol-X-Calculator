@@ -3,50 +3,27 @@ package HackaMol::X::Calculator;
 # ABSTRACT: Abstract calculator class for HackaMol
 use 5.008;
 use Moose;
+use MooseX::StrictConstructor;
 use Moose::Util::TypeConstraints;
-use Capture::Tiny ':all';
-use File::chdir;
+use namespace::autoclean;
 use Carp;
 
-with qw(HackaMol::ExeRole HackaMol::PathRole);
+with qw(HackaMol::X::ExtensionRole);
 
-has 'mol' => (
-    is  => 'ro',
-    isa => 'HackaMol::Molecule',
-);
+sub _build_map_in{
+  my $sub_cr = sub { return (@_) };
+  return $sub_cr;
+}
 
-has 'map_in' => (
-    is        => 'ro',
-    isa       => 'CodeRef',
-    predicate => 'has_map_in',
-);
-has 'map_out' => (
-    is        => 'ro',
-    isa       => 'CodeRef',
-    predicate => 'has_map_out',
-);
-
-#some setup
-sub BUILD {
-    my $self = shift;
-
-    if ( $self->has_scratch ) {
-        $self->scratch->mkpath unless ( $self->scratch->exists );
-    }
-
-    #build command
-    unless ( $self->has_command ) {
-        return unless ( $self->has_exe );
-        my $cmd = $self->build_command;
-        $self->command($cmd);
-    }
-    return;
+sub _build_map_out{
+  my $sub_cr = sub { return (@_) };
+  return $sub_cr;
 }
 
 sub build_command {
-
-# the command won't be overwritten during build, but may be overwritten with this method
+    # exe -options file.inp -moreoptions > file.out
     my $self = shift;
+    return 0 unless $self->exe;
     my $cmd;
     $cmd = $self->exe;
     $cmd .= " " . $self->in_fn->stringify    if $self->has_in_fn;
@@ -57,50 +34,19 @@ sub build_command {
     return $cmd;
 }
 
-sub map_input {
+sub BUILD {
+    my $self = shift;
 
-    # pass everything and anything to map_in... i.e. keep @_ in tact
-    my ($self) = @_;
-    unless ( $self->has_in_fn and $self->has_map_in ) {
-        carp "in_fn and map_in attrs required to map input";
-        return 0;
-    }
-    local $CWD = $self->scratch if ( $self->has_scratch );
-    my $input = &{ $self->map_in }(@_);
-
-# $self->in_fn->spew($input); leaving such actions inside the map_in coderef is more flexible
-# too flexible?
-    return $input;
-}
-
-sub map_output {
-
-    # pass everything and anything to map_out... i.e. keep @_ in tact
-    my ($self) = @_;
-    unless ( $self->has_out_fn and $self->has_map_out ) {
-        carp "out_fn and map_out attrs required to map output";
-        return 0;
-    }
-    local $CWD = $self->scratch if ( $self->has_scratch );
-    my $output = &{ $self->map_out }(@_);
-    return $output;
-}
-
-sub capture_sys_command {
-
-    # run it and return all that is captured
-    my $self    = shift;
-    my $command = shift;
-    unless ( defined($command) ) {
-        return 0 unless $self->has_command;
-        $command = $self->command;
+    if ( $self->has_scratch ) {
+        $self->scratch->mkpath unless ( $self->scratch->exists );
     }
 
-    local $CWD = $self->scratch if ( $self->has_scratch );
-    my ( $stdout, $stderr, $exit ) = capture {
-        system($command);
-    };
-    return ( $stdout, $stderr, $exit );
+    unless ( $self->has_command ) {
+        return unless ( $self->has_exe );
+        my $cmd = $self->build_command;
+        $self->command($cmd);
+    }
+    return;
 }
 
 __PACKAGE__->meta->make_immutable;
@@ -117,134 +63,88 @@ HackaMol::X::Calculator - Abstract calculator class for HackaMol
 
 =head1 VERSION
 
-version 0.00_4
+version 0.00_5
 
 =head1 SYNOPSIS
 
    use Modern::Perl;
    use HackaMol;
    use HackaMol::X::Calculator;
+   use Path::Tiny;
+   
+   my $path = shift || die "pass path to gaussian outputs";
+   
+   my $hack = HackaMol->new( data => $path, );
+   
+   foreach my $out ( $hack->data->children(qr/\.out$/) ) {
 
-   my $hack = HackaMol->new( 
-                             name => "hackitup" , 
-                             data => "local_pdbs",
-                           );
-    
-   my $i = 0;
-
-   foreach my $pdb ($hack->data->children(qr/\.pdb$/)){
-
-      my $mol = $hack->read_file_mol($pdb);
-
-      my $Calc = HackaMol::X::Calculator->new (
-                    molecule => $mol,
-                    scratch  => 'realtmp/tmp',
-                    in_fn    => 'calc.inp'
-                    out_fn   => "calc-$i.out"
-                    map_in   => \&input_map,
-                    map_out  => \&output_map,
-                    exe      => '~/bin/xyzenergy < ', 
-      );     
- 
-      $Calc->map_input;
-      $Calc->capture_sys_command;
-      my $energy = $Calc->map_output(627.51);
-
-      printf ("Energy from xyz file: %10.6f\n", $energy);
-
-      $i++;
-
+       my $Calc = HackaMol::X::Calculator->new(
+           out_fn  => $out,
+           map_out => \&output_map,
+       );
+   
+       my $energy = $Calc->map_output(627.51);
+   
+       printf( "%-40s: %10.6f\n", $Calc->out_fn->basename, $energy );
+   
    }
-
-   #  our functions to map molec info to input and from output
-   sub input_map {
-     my $calc = shift;
-     $calc->mol->print_xyz($calc->in_fn);
-   }
-
+   
+   #  our function to map molec info from output
+   
    sub output_map {
-     my $calc   = shift;
-     my $conv   = shift;
-     my @eners  = map { /ENERGY= (-*\d+.\d+)/; $1*$conv } 
-                  grep {/ENERGY= -*\d+.\d+/} $calc->out_fn->lines; 
-     return pop @eners; 
+       my $calc = shift;
+       my $conv = shift;
+       my $out  = $calc->out_fn->slurp;
+       $out =~ m /SCF Done:.*(-\d+.\d+)/;
+       return ( $1 * $conv );
    }
 
 =head1 DESCRIPTION
 
 The HackaMol::X::Calculator extension generalizes molecular calculations using external programs. 
-The Calculator class consumes roles provided by the HackaMol core that manages the running of 
-executables... perhaps on files; perhaps in directories.  This extension is intended to provide a 
-simple example of interfaces with external programs. It is probably too flexible. New extensions 
-can evolve from this starting point, in scripts, to more rigid encapsulated classes. In the synopsis,
-The input is written (->map_input), the command is run (->capture_sys_command) and the output is 
-processed (->map_output).  Thus, the calculator can be used to 1. generate inputs, 2. run programs, 3. 
-process outputs.
+The Calculator class consumes the HackaMol::X::ExtensionRole role, which manage the running of executables... 
+perhaps on files; perhaps in directories.  This extension is intended to provide a 
+simple example of interfaces with external programs. This is a barebones use of the ExtensionRole that is 
+intended to be flexible. See the examples and testing directory for use of the map_in and map_out functions
+inside and outside of the map_input and map_output functions.  Extensions with more rigid and encapsulated 
+APIs can evolve from this starting point. In the synopsis, a Gaussian output is processed for the SCF Done
+value (a classic scripting of problem computational chemists).  See the examples and tests to learn how the 
+calculator can be used to: 
 
-=head1 METHODS
+  1. generate inputs 
+  2. run programs
+  3. process outputs
 
-=head2 map_input
-
-changes to scratch directory, if set, and passes all arguments (including self) to 
-map_in CodeRef. Thus, any input writing must 
-
-  $calc->map_input(@args);
-
-will invoke,
-
-  &{$calc->map_in}(@_);  #where @_ = ($self,@args)
-
-and return anything returned by the map_in function.
-
-=head2 map_output
-
-completely analogous to map_input.  Thus, the output must be opened and processed in the
-map_out function.
-
-=head2 build_command 
-
-builds the command from the attributes: exe, inputfn, exe_endops, if they exist, and returns
-the command.
-
-=head2 capture_sys_command
-
-uses Capture::Tiny capture method to run a command using a system call. STDOUT, STDERR, are
-captured and returned.
-
-  my ($stdout, $stderr,@other) = capture { system($command) }
-
-the $command is taken from $calc->command unless the $command is passed,
-
-  $calc->capture_sys_command($some_command);
-
-capture_sys_command returns ($stdout, $stderr,@other) or 0 if there is no command set.
+via interactions with HackaMol objects.
 
 =head1 ATTRIBUTES
 
 =head2 scratch
 
-Coerced to be 'Path::Tiny' via AbsPath. If scratch is set, all work is carried out in that 
-directory.  See HackaMol::PathRole for more information about the scracth attribute.
+If scratch is set, the object will build that directory if needed.  See HackaMol::PathRole for more information about 
+the scratch attribute.
 
-=head2 mol
+=head1 SEE ALSO
 
-isa HackaMol::Molecule that is ro and required
+=over 4
 
-=head2 map_in
+=item *
 
-isa CodeRef that is ro
+L<HackaMol>
 
-intended for mapping input files from molecular information, but it is completely
-flexible. Used in map_input method.  Can also be directly ivoked,
+=item *
 
-  &{$calc->map_in}(@args); 
+L<HackaMol::X::Extension>
 
-as any other subroutine would be.
+=item *
 
-=head2 map_out
+L<HackaMol::PathRole>
 
-intended for mapping molecular information from output files, but it is completely
-flexible and analogous to map_in. 
+=item *
+
+L<Path::Tiny>
+
+=back
 
 =head1 EXTENDS
 
@@ -263,6 +163,8 @@ flexible and analogous to map_in.
 =item * L<HackaMol::ExeRole|HackaMol::PathRole>
 
 =item * L<HackaMol::PathRole>
+
+=item * L<HackaMol::X::ExtensionRole>
 
 =back
 
